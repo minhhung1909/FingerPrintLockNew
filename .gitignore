@@ -3,8 +3,8 @@
 /build
 
 #this is a external library (self made)
-/common
-
+/common/*
+!common/wifi/
 components/Espressif
 components/arduino/*
 !components/arduino/libraries/Keypad/
