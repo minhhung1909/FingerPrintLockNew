@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>WIFI</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style>
+		html {
+			font-family: Arial;
+			display: inline-block;
+			text-align: center;
+		}
+		body {
+			margin: 0;
+		}
+		.topnav {
+			overflow: hidden;
+			background-color: #2f4468;
+			color: white;
+			font-size: 1.7rem;
+		}
+		.content {
+			padding: 20px;
+		}
+		.device-selector {
+			margin-top: 20px;
+			size: 80%;
+		}
+	</style>
+</head>
+<body>
+    <div class="topnav">
+		<h3>WIFI INFORMATION</h3>
+	</div>
+	<div class="device-selector">
+		<label for="deviceSelector">Select WiFi Network:</label>
+		<select id="deviceSelector"></select>
+		<br>
+		<label for="pass">Password:</label>
+		<input type="password" id="pass">
+		<br>
+		<button onclick="getData()">Commit</button>
+	</div>
+	<script>
+		function fetchWifiList() {
+            var xhttp1 = new XMLHttpRequest();
+            xhttp1.addEventListener('readystatechange', () => {
+                var element1 = document.getElementById('deviceSelector');
+                element1.innerHTML = '';
+                if (xhttp1.readyState === 4 && xhttp1.status === 200) {
+                    const obj = JSON.parse(xhttp1.responseText);
+                    for (let index in obj) {
+                        const option = document.createElement('option');
+                        option.textContent = obj[index].ssid;
+                        element1.appendChild(option);
+                    }
+                }
+                if (element1.options.length > 0) {
+                    clearInterval(myInterval);
+                }
+            });
+            xhttp1.open("GET", "/wifi", true);
+            xhttp1.send();
+        }
+		
+		function getData() {
+			var xhttp2 = new XMLHttpRequest();
+			var ssid = document.getElementById("deviceSelector").value;
+			var pass = document.getElementById("pass").value;
+			var data = ssid + '|' + pass;
+			// var data = pass;
+			xhttp2.open("POST", "http://192.168.4.1/post", true);
+			xhttp2.send(data); 
+			console.log("data: ", data);
+			setInterval(myInterval)
+		}
+		
+		const myInterval = setInterval(fetchWifiList, 1000);
+		// const myInterval2 = setInterval(getData, 1000);
+
+	</script>
+</body>
+</html>

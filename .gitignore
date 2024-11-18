@@ -1,0 +1,17 @@
+/.devcontainer
+/.vscode/
+/build
+
+#this is a external library (self made)
+/common
+
+components/Espressif
+components/arduino/*
+!components/arduino/libraries/Keypad/
+!components/arduino/libraries/finger/
+!components/arduino/CMakeLists.txt
+
+
+/managed_components
+/dependencies.lock
+/sdkconfig.old
