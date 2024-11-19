@@ -43,6 +43,7 @@ extern "C" {
     #undef IPADDR_NONE
     #include "lwip/ip4_addr.h"
     #include "app_http_server.h"
+    #include "app_OTA.h"
 }
 
 extern "C" {
@@ -221,7 +222,7 @@ void app_main(void)
     esp_netif_get_ip_info(netif, &ip_info);
     ESP_LOGI(TAG_CHECK, "IP Address: " IPSTR, IP2STR(&ip_info.ip));
 
-    
-
-
+    // xTaskCreate(&app_ota_task, "app_ota_task", 8192, NULL, 5, NULL);
+    // app_ota_task();
+    xTaskCreate(&app_ota_task, "ota_example_task", 8192, NULL, 5, NULL);
 }
