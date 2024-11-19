@@ -194,7 +194,6 @@ void app_main(void)
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-    ESP_LOGI(TAG_CHECK, "hello");
     
     wifi_scan();
 
@@ -205,7 +204,7 @@ void app_main(void)
     // ESP_LOGI(TAG_CHECK, "data is: %s", buffer_info_wifi_post);
     while (1)
     {
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
         if (buffer_info_wifi_post[0] != '\0')
         {
             ESP_LOGI(TAG_CHECK, "data is: %s", buffer_info_wifi_post);
@@ -213,8 +212,16 @@ void app_main(void)
             buffer_info_wifi_post[0] = '\0';
             stop_webserver();
             ESP_LOGI(TAG_CHECK, "stop webserver...");
-            ESP_LOGI(TAG_CHECK, "stop webserver...");
-        }        
+            break;
+        }
     }
+    // get ipv4 address of esp32 when connect with wifi
+    esp_netif_ip_info_t ip_info;
+    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    esp_netif_get_ip_info(netif, &ip_info);
+    ESP_LOGI(TAG_CHECK, "IP Address: " IPSTR, IP2STR(&ip_info.ip));
+
     
+
+
 }
