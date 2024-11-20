@@ -292,9 +292,10 @@ set(ARDUINO_LIBRARY_BLE_SRCS
 set(ARDUINO_LIBRARIES_SRCS
   libraries/Keypad/src/Key.cpp
   libraries/Keypad/src/Keypad.cpp
-  libraries/finger/Adafruit_Fingerprint.cpp
+  libraries/finger/src/Adafruit_Fingerprint.cpp
 
 )
+
 set(ARDUINO_LIBRARIES_REQUIRES)
 set(ARDUINO_LIBRARIES_INCLUDEDIRS)
 foreach(libname IN LISTS ARDUINO_ALL_LIBRARIES)
