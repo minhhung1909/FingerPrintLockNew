@@ -17,4 +17,3 @@ components/arduino/*
 
 /managed_components
 /dependencies.lock
-/sdkconfig.old

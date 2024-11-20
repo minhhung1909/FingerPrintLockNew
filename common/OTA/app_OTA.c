@@ -7,28 +7,12 @@
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
 #include "string.h"
-#ifdef CONFIG_EXAMPLE_USE_CERT_BUNDLE
-#include "esp_crt_bundle.h"
-#endif
-
-#include <sys/socket.h>
-#if CONFIG_EXAMPLE_CONNECT_WIFI
-#include "esp_wifi.h"
-#endif
 
 #define HASH_LEN 32
 
-#ifdef CONFIG_EXAMPLE_FIRMWARE_UPGRADE_BIND_IF
-/* The interface name value can refer to if_desc in esp_netif_defaults.h */
-#if CONFIG_EXAMPLE_FIRMWARE_UPGRADE_BIND_IF_ETH
-static const char *bind_interface_name = EXAMPLE_NETIF_DESC_ETH;
-#elif CONFIG_EXAMPLE_FIRMWARE_UPGRADE_BIND_IF_STA
-static const char *bind_interface_name = EXAMPLE_NETIF_DESC_STA;
-#endif
-#endif
-
 static const char *TAG = "simple_ota_example";
 #define OTA_URL_SIZE 256
+const char *api_server = "http://minhhung.local:8000/ota/blink_LED.bin";
 
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
@@ -61,8 +45,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-const char *api_server = "http://192.168.137.1:8000/ota/blink_LED.bin";
-
 void app_ota_task(void *pvParameter)
 {
     ESP_LOGI(TAG, "Starting OTA example task");
@@ -72,24 +54,6 @@ void app_ota_task(void *pvParameter)
         .event_handler = _http_event_handler,
         .keep_alive_enable = true
     };
-
-#ifdef CONFIG_EXAMPLE_FIRMWARE_UPGRADE_URL_FROM_STDIN
-    char url_buf[OTA_URL_SIZE];
-    if (strcmp(config.url, "FROM_STDIN") == 0) {
-        example_configure_stdin_stdout();
-        fgets(url_buf, OTA_URL_SIZE, stdin);
-        int len = strlen(url_buf);
-        url_buf[len - 1] = '\0';
-        config.url = url_buf;
-    } else {
-        ESP_LOGE(TAG, "Configuration mismatch: wrong firmware upgrade image url");
-        abort();
-    }
-#endif
-
-#ifdef CONFIG_EXAMPLE_SKIP_COMMON_NAME_CHECK
-    config.skip_cert_common_name_check = true;
-#endif
 
     esp_https_ota_config_t ota_config = {
         .http_config = &config,

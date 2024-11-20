@@ -46,7 +46,7 @@ typedef struct {
 } wifi_info_t;
 
 extern char buffer_info_wifi_post[100];
-extern uint8_t trigger_wifi;
+
 typedef void (*switch_handle_t) (int onoff);
 typedef void (*slider_handle_t) (int duty);
 static esp_err_t http_post_handler(httpd_req_t *req);
@@ -56,4 +56,6 @@ void switch_set_callback(void *cb);
 void wifi_scan(void);
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 void wifi_init_sta();
+void wifi_init_softap(void);
+
 #endif

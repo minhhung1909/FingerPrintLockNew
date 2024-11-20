@@ -1,5 +1,4 @@
 extern "C" {
-    #include "app_http_server.h"
     #include <esp_wifi.h>
     #include <esp_event.h>
     #include <esp_log.h>
@@ -17,6 +16,7 @@ extern "C" {
     #include "lwip/err.h"
     #include "lwip/sys.h"
     #include "app_http_server.h"
+    #include "esp_mac.h"
 }
 
 
@@ -29,29 +29,38 @@ extern "C"{
     void stop_webserver(void);
     void start_webserver(void);
     void wifi_scan(void);
-    void stop_webserver(void);
-    void switch_set_callback(void *cb);
     static void event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data);
-    static void event_handler_forSTAinfo(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data);
     void wifi_init_sta();
+    static void wifi_event_handler_ap(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
+    void wifi_init_softap(void);
 }
+
+#define ESP_WIFI_SSID      "FINGER LOCK"
+#define ESP_WIFI_PASS      "123456789"
+#define ESP_WIFI_CHANNEL   1
+#define MAX_STA_CONN       10
 
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 
 static const char *TAG = "TAG: ";
 static const char *TAG_SCAN = "scan";
-char *json_string;
-static httpd_handle_t server = NULL;
+const char *TAG_DEBUG = "----------- DEBUG: ";
+static const char *TAG_AP = "wifi softAP";
+static const char *TAG_STATION = "wifi station";
 
+static httpd_handle_t server = NULL;
 static switch_handle_t p_switch_handle = NULL;
 
 wifi_info_t infoWF[DEFAULT_SCAN_LIST_SIZE];
 int sizeWF;
 char buffer_info_wifi_post[100] = {"\0"};
-uint8_t trigger_wifi;
+char *json_string;
+
+static EventGroupHandle_t s_wifi_event_group;
+static int s_retry_num = 0;
+
 
 void wifi_scan(void){
     uint16_t number = DEFAULT_SCAN_LIST_SIZE;
@@ -175,13 +184,6 @@ void switch_set_callback(void *cb){
 
 /*--------------------------------------------------------------------*/
 
-
-static const char *TAG_STATION = "wifi station";
-
-static EventGroupHandle_t s_wifi_event_group;
-
-static int s_retry_num = 0;
-
 static void event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data)
 {
@@ -271,4 +273,59 @@ void wifi_init_sta(){
     } else {
         ESP_LOGE(TAG_STATION, "UNEXPECTED EVENT");
     }
+}
+/*--------------------- AP MODE------------------------ */
+
+
+static void wifi_event_handler_ap(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data){
+    if (event_id == WIFI_EVENT_AP_STACONNECTED) {
+        wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+        ESP_LOGI(TAG_AP, "station "MACSTR" join, AID=%d",
+                 MAC2STR(event->mac), event->aid);
+    } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+        ESP_LOGI(TAG_AP, "station "MACSTR" leave, AID=%d",
+                 MAC2STR(event->mac), event->aid);
+    }
+}
+
+void wifi_init_softap(void)
+{
+    // ESP_ERROR_CHECK(esp_netif_init());
+    // ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    esp_netif_create_default_wifi_ap();
+    if (esp_netif_get_handle_from_ifkey("WIFI_STA_DEF") == NULL) {
+        esp_netif_create_default_wifi_sta();
+    }
+
+    // wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    // ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler_ap, NULL, NULL));
+
+    wifi_config_t wifi_config = {
+        .ap = {
+            .ssid = ESP_WIFI_SSID,
+            .password = ESP_WIFI_PASS,
+            .ssid_len = strlen(ESP_WIFI_SSID),
+            .channel = ESP_WIFI_CHANNEL,
+            .authmode = WIFI_AUTH_WPA2_PSK,
+            .max_connection = MAX_STA_CONN,
+            .pmf_cfg = {
+                    .required = true,
+            },
+        },
+    };
+    if (strlen(ESP_WIFI_PASS) == 0) {
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    // ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    ESP_LOGI(TAG_AP, "wifi_init_softap_STA finished. SSID:%s password:%s channel:%d",
+             ESP_WIFI_SSID, ESP_WIFI_PASS, ESP_WIFI_CHANNEL);
 }
