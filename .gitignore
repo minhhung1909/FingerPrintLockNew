@@ -4,6 +4,9 @@
 
 #this is a external library (self made)
 
+/common/*
+!common/wifi/
+!common/OTA/
 
 components/Espressif
 components/arduino/*
