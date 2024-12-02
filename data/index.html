@@ -25,6 +25,7 @@
 			margin-top: 20px;
 			size: 80%;
 		}
+		
 	</style>
 </head>
 <body>
@@ -38,6 +39,7 @@
 		<label for="pass">Password:</label>
 		<input type="password" id="pass">
 		<br>
+		<button onclick="fetchWifiList()">Get Wifi</button>
 		<button onclick="getData()">Commit</button>
 	</div>
 	<script>
@@ -73,7 +75,7 @@
 			console.log("data: ", data);
 			setInterval(myInterval)
 		}
-		
+
 		const myInterval = setInterval(fetchWifiList, 1000);
 		// const myInterval2 = setInterval(getData, 1000);
 

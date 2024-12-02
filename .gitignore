@@ -1,10 +1,6 @@
-/.devcontainer
-/.vscode/
-/build
-
+/*
 #this is a external library (self made)
 
-/common/*
 !common/wifi/
 !common/OTA/
 
@@ -14,6 +10,10 @@ components/arduino/*
 !components/arduino/libraries/finger/
 !components/arduino/CMakeLists.txt
 
-
-/managed_components
-/dependencies.lock
+!data
+!main
+!.gitignore
+!CMakeLists.txt
+!partition.csv
+!sdkconfig
+!sdkconfig.old

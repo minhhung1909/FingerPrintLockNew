@@ -10,26 +10,19 @@ extern "C" {
     #include "esp_wifi.h"
     #include "lwip/sys.h"
     #include <nvs_flash.h>
-
     #include "app_http_server.h"
     #include "app_OTA.h"
 }
+#include "finger_run.h"
 
 extern "C" {
     void initUART(void);
     void app_main(void);
-    void deleteAllFingerprints();
-    void enrollNewFingerprint();
-    void taskCheckKeypad(void *param);
-    void taskCheckFingerprint(void *param);
-
 }
 
 /* ---------- START INCLUDE ADRUINO LIB ---------- */
 
-#include <Arduino.h>
-#include "Adafruit_Fingerprint.h"
-#include "Keypad.h"
+// #include "Adafruit_Fingerprint.h"
 
 /* ---------- END INCLUDE ADRUINO LIB ---------- */
 
@@ -44,26 +37,22 @@ extern "C" {
 /* ------------- START VARIABLE ------------- */
 
 static const char *TAG_CHECK = "check";
-static const char *TAG_FINGERPRINT = "FINGERPRINT";
+// byte rowPins[ROWS] ={39, 40, 41, 42};
+// byte colPins[COLS] = {36, 37, 38};
 
-const byte ROWS = 4; //four rows
-const byte COLS = 3; //three columns
-char keys[ROWS][COLS] = {
-  {'1','2','3'},
-  {'4','5','6'},
-  {'7','8','9'},
-  {'*','0','#'}
-};
+// const byte ROWS = 4; //four rows
+// const byte COLS = 3; //three columns
+// char keys[ROWS][COLS] = {
+//   {'1','2','3'},
+//   {'4','5','6'},
+//   {'7','8','9'},
+//   {'*','0','#'}
+// };
 
-byte rowPins[ROWS] = {21, 5, 18, 19};
-byte colPins[COLS] = {12, 14, 27};
+// Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+// static String password = "**"; 
+
 static const int RX_BUF_SIZE = 1024;
-
-static uint8_t nextFingerprintID = 1; 
-HardwareSerial mySerial(1);
-static Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial, 1234);
-Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
-static String password = "**"; 
 
 /* ------------- END ------------- */
 
@@ -89,9 +78,7 @@ void initUART(void) {
 
 /* ---------- START MAIN ---------- */
 void app_main(void)
-{
-    mySerial.begin(57600, SERIAL_8N1, 17, 16);
-    ESP_LOGI(TAG_FINGERPRINT, "Start Sensor Fingerprint");
+{    
     // initUART();
 
     // Initialize NVS
@@ -101,37 +88,33 @@ void app_main(void)
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-    
-    wifi_scan();
 
-    wifi_init_softap();
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    // Start the web server
-    start_webserver();
+    // init_First_Checkpass();
+    app_config();
+
+    // esp_log_level_set("gpio", ESP_LOG_NONE);
+    // while (1) {
+    //     // char key = keypad.getKey();  
+    //     // if (key) {
+    //     // ESP_LOGI(TAG_CHECK, "Phim = %c", key);  
+    //     // }
+    //     vTaskDelay(505 / portTICK_PERIOD_MS);  
+    // }
+
+
+    // start_webserver();
 
     while (1)
     {
-        vTaskDelay(100);
-        if (buffer_info_wifi_post[0] != '\0')
-        {
-            wifi_init_sta();
-            buffer_info_wifi_post[0] = '\0';
-            stop_webserver();
-            ESP_LOGI(TAG_CHECK, "stop webserver...");
-            break;
-        }
+
     }
 
-    xTaskCreate(&app_ota_task, "ota_example_task", 8192, NULL, 5, NULL);
-    finger.begin(57600);
-    if (finger.verifyPassword()) {
-        ESP_LOGI(TAG_FINGERPRINT, "Start Sensor Fingerprint Successfully");
-    } else {
-        ESP_LOGI(TAG_FINGERPRINT, "Cannot connect to Sensor Fingerprint");
-        while (1);
-    }
-    // xTaskCreate(taskCheckKeypad, "taskCheckKeypad", 4096, NULL, 1, NULL); 
-    // xTaskCreate(taskCheckFingerprint, "taskCheckFingerprint", 4096, NULL, 2, NULL);
+    // xTaskCreate(&app_ota_task, "ota_example_task", 8192, NULL, 5, NULL);
+
+
 
     // get ipv4
     /*
@@ -147,103 +130,5 @@ void app_main(void)
 
 /* ---------- START FUNCTION ---------- */
 
-
-// Hàm để xóa toàn bộ dữ liệu vân tay
-void deleteAllFingerprints() {
-    ESP_LOGI(TAG_FINGERPRINT, "Xóa tất cả dữ liệu vân tay trong bộ nhớ...");
-    if (finger.emptyDatabase() == FINGERPRINT_OK) {
-        ESP_LOGI(TAG_FINGERPRINT, "Đã xóa thành công tất cả dữ liệu vân tay.");
-        nextFingerprintID = 1;
-    } else {
-        ESP_LOGI(TAG_FINGERPRINT, "Xóa dữ liệu vân tay thất bại.");
-    }
-}
-
-// Hàm để ghi lại vân tay mới
-void enrollNewFingerprint() {
-    ESP_LOGI(TAG_FINGERPRINT, "Ghi lại vân tay mới với ID #: %d", nextFingerprintID);
-    if (finger.getImage() != FINGERPRINT_OK) {
-        ESP_LOGI(TAG_FINGERPRINT, "Đặt ngón tay lên cảm biến không thành công.");
-        return;
-    }
-
-    if (finger.image2Tz(1) != FINGERPRINT_OK) {
-        ESP_LOGI(TAG_FINGERPRINT, "Chuyển đổi hình ảnh thất bại.");
-        return;
-    }
-
-    ESP_LOGI(TAG_FINGERPRINT, "Nhấc ngón tay ra...");
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-
-    ESP_LOGI(TAG_FINGERPRINT, "Đặt lại ngón tay...");
-    while (finger.getImage() != FINGERPRINT_OK);
-
-    if (finger.image2Tz(2) != FINGERPRINT_OK) {
-        ESP_LOGI(TAG_FINGERPRINT, "Chuyển đổi hình ảnh lần thứ hai thất bại.");
-        return;
-    }
-
-    if (finger.createModel() == FINGERPRINT_OK) {
-        if (finger.storeModel(nextFingerprintID) == FINGERPRINT_OK) {
-            ESP_LOGI(TAG_FINGERPRINT, "Ghi vân tay thành công!");
-            nextFingerprintID++;
-        } else {
-            ESP_LOGI(TAG_FINGERPRINT, "Lưu vân tay thất bại.");
-        }
-    } else {
-        ESP_LOGI(TAG_FINGERPRINT, "Tạo mô hình vân tay thất bại.");
-    }
-}
-
-void taskCheckKeypad(void *param) {
-  while (1) {
-    ESP_LOGI(TAG_FINGERPRINT, "Nhấn '1' để ghi vân tay mới, '2' để xóa toàn bộ vân tay");
-    char key = keypad.getKey();
-    if (key) {
-      if (key == '1') {
-        ESP_LOGI(TAG_FINGERPRINT, "Lệnh ghi vân tay mới nhận được.");
-        enrollNewFingerprint();
-      } else if (key == '2') {
-        ESP_LOGI(TAG_FINGERPRINT, "Lệnh xóa toàn bộ vân tay nhận được.");
-        deleteAllFingerprints();
-      }
-    }
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-  }
-}
-
-void taskCheckFingerprint(void *param) {
-    while (1) {
-        ESP_LOGI(TAG_FINGERPRINT, "Chờ vân tay hoặc đợi nhập mật khẩu để mở khóa");
-        if (finger.getImage() == FINGERPRINT_OK) {
-            ESP_LOGI(TAG_FINGERPRINT, "Đã phát hiện ngón tay.");
-            if (finger.image2Tz() == FINGERPRINT_OK && finger.fingerSearch() == FINGERPRINT_OK) {
-                ESP_LOGI(TAG_FINGERPRINT, "Tìm thấy vân tay ID #: %d", finger.fingerID);
-            } else {
-                ESP_LOGI(TAG_FINGERPRINT, "Không tìm thấy vân tay trong bộ nhớ.");
-            }
-        } else {
-            unsigned long startTime = millis();
-            String enteredPassword = "";
-            while (millis() - startTime < 5000) {
-                char key = keypad.getKey();
-                if (key) {
-                    enteredPassword += key;
-                    ESP_LOGI(TAG_FINGERPRINT, "Đã nhập: %s", enteredPassword.c_str());
-                    if (enteredPassword == password) {
-                        ESP_LOGI(TAG_FINGERPRINT, "Mật khẩu đúng!");
-                        break;
-                    }
-                }
-                vTaskDelay(10 / portTICK_PERIOD_MS);
-            }
-
-            if (enteredPassword != password) {
-                ESP_LOGI(TAG_FINGERPRINT, "Mật khẩu sai hoặc không kịp thời gian");
-            }
-        }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-}
 
 /* ---------- END FUNCTION ---------- */

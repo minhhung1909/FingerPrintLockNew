@@ -64,17 +64,17 @@ static int s_retry_num = 0;
 
 void wifi_scan(void){
     uint16_t number = DEFAULT_SCAN_LIST_SIZE;
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
-    assert(sta_netif);
+    uint16_t ap_count = 0;
+
+    if (esp_netif_get_handle_from_ifkey("WIFI_STA_DEF") == NULL) {
+        esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
+        assert(sta_netif);
+    }
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
     
     wifi_ap_record_t ap_info[DEFAULT_SCAN_LIST_SIZE];
-    uint16_t ap_count = 0;
     memset(ap_info, 0, sizeof(ap_info));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -83,7 +83,7 @@ void wifi_scan(void){
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, ap_info));
     ESP_LOGI(TAG_SCAN, "Total APs scanned = %u, actual AP number ap_info holds = %u", ap_count, number);
-    sizeWF = ap_count;
+
     cJSON *root = cJSON_CreateObject();
     
     for (int i = 0; i < ap_count; i++) {
@@ -254,7 +254,6 @@ void wifi_init_sta(){
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
-    ESP_LOGI(TAG_STATION, "config wifi Ok.");
 
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
             WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
@@ -273,6 +272,7 @@ void wifi_init_sta(){
     } else {
         ESP_LOGE(TAG_STATION, "UNEXPECTED EVENT");
     }
+    ESP_LOGI(TAG_STATION, "config wifi Ok.");
 }
 /*--------------------- AP MODE------------------------ */
 
@@ -328,4 +328,45 @@ void wifi_init_softap(void)
 
     ESP_LOGI(TAG_AP, "wifi_init_softap_STA finished. SSID:%s password:%s channel:%d",
              ESP_WIFI_SSID, ESP_WIFI_PASS, ESP_WIFI_CHANNEL);
+}
+
+bool wifi_in_flash(void){
+    ESP_LOGI(TAG, "wifi_in_flash");
+    ESP_LOGD(TAG, "BEBUG 0");
+    if (esp_netif_get_handle_from_ifkey("WIFI_STA_DEF") == NULL) {
+        esp_netif_create_default_wifi_sta();
+    }
+    ESP_LOGD(TAG, "BEBUG 1");
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_LOGD(TAG, "BEBUG 2");
+    wifi_config_t wifi_config;
+    esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
+    ESP_LOGD(TAG, "BEBUG 3");
+    if(wifi_config.sta.ssid[0] != 0x00){
+        sprintf(buffer_info_wifi_post, "%s|%s", wifi_config.sta.ssid, wifi_config.sta.password);
+        ESP_LOGI(TAG, "Have wifi in flash: %s", buffer_info_wifi_post);
+        return true;
+    }
+    return false;
+
+}
+
+void app_config() {
+    bool state_storage = wifi_in_flash();
+    ESP_LOGI(TAG, "state_storage: %d", state_storage);
+    s_wifi_event_group = xEventGroupCreate();
+    if(!state_storage){
+        wifi_scan();
+        wifi_init_softap();
+        start_webserver();
+        ESP_LOGI(TAG, "start webserver...");
+    }
+    else{
+        // ESP_ERROR_CHECK(esp_wifi_start());
+        ESP_LOGI(TAG, "wifi_init_sta...");
+        wifi_init_sta();
+
+    }
 }
