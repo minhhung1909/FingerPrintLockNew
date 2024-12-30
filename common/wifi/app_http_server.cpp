@@ -12,13 +12,11 @@ extern "C" {
     #include "freertos/task.h"
     #include "freertos/event_groups.h"
     #include "esp_wifi.h"
-    #include "esp_log.h"
     #include "lwip/err.h"
     #include "lwip/sys.h"
     #include "app_http_server.h"
     #include "esp_mac.h"
 }
-
 
 extern "C"{
     static esp_err_t http_get_handler(httpd_req_t *req);
@@ -29,11 +27,11 @@ extern "C"{
     void stop_webserver(void);
     void start_webserver(void);
     void wifi_scan(void);
-    static void event_handler(void* arg, esp_event_base_t event_base,
-                          int32_t event_id, void* event_data);
+    static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
     void wifi_init_sta();
     static void wifi_event_handler_ap(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
     void wifi_init_softap(void);
+    void app_config();
 }
 
 #define ESP_WIFI_SSID      "FINGER LOCK"
@@ -44,11 +42,10 @@ extern "C"{
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 
-static const char *TAG = "TAG: ";
-static const char *TAG_SCAN = "scan";
-const char *TAG_DEBUG = "----------- DEBUG: ";
-static const char *TAG_AP = "wifi softAP";
-static const char *TAG_STATION = "wifi station";
+static const char *TAG_SERVER = "Server: ";
+static const char *TAG_SCAN = "Scan: ";
+static const char *TAG_AP = "Wifi softAP: ";
+static const char *TAG_STATION = "Wifi station: ";
 
 static httpd_handle_t server = NULL;
 static switch_handle_t p_switch_handle = NULL;
@@ -116,8 +113,6 @@ static const httpd_uri_t http_get = {
     .uri       = "/get",
     .method    = HTTP_GET,
     .handler   = http_get_handler,
-    /* Let's pass response string in user
-     * context to demonstrate it's usage */
     .user_ctx  = (void *)"Hello World!"
 };
 
@@ -133,8 +128,9 @@ static const httpd_uri_t http_get_infoWF = {
     .uri       = "/wifi",
     .method    = HTTP_GET,
     .handler   = get_wif_handler,
-    .user_ctx  = NULL
+    .user_ctx  = (void*)"{\"status\": \"ok\"}" // Pass the JSON string via user_ctx
 };
+
 /* An HTTP POST handler */
 static esp_err_t http_post_handler(httpd_req_t *req)
 {
@@ -142,7 +138,7 @@ static esp_err_t http_post_handler(httpd_req_t *req)
     /* Read the data for the request */
     httpd_req_recv(req, buffer_info_wifi_post, data_len);
     /* Log data received */
-    ESP_LOGI(TAG, "Check first: %.*s", data_len, buffer_info_wifi_post );
+    ESP_LOGI(TAG_SERVER, "Check first: %.*s", data_len, buffer_info_wifi_post );
 
     // End response
     httpd_resp_send_chunk(req, NULL, 0);
@@ -163,10 +159,10 @@ void start_webserver(void)
     config.lru_purge_enable = true;
 
     // Start the httpd server
-    ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
+    ESP_LOGI(TAG_SERVER, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
         // Set URI handlers
-        ESP_LOGI(TAG, "Registering URI handlers");
+        ESP_LOGI(TAG_SERVER, "Registering URI handlers");
         httpd_register_uri_handler(server, &http_get);
         httpd_register_uri_handler(server, &http_post);
         httpd_register_uri_handler(server, &http_get_infoWF);
@@ -184,8 +180,7 @@ void switch_set_callback(void *cb){
 
 /*--------------------------------------------------------------------*/
 
-static void event_handler(void* arg, esp_event_base_t event_base,
-                          int32_t event_id, void* event_data)
+static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
@@ -193,14 +188,14 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         if (s_retry_num < ESP_MAXIMUM_RETRY) {
             esp_wifi_connect();
             s_retry_num++;
-            ESP_LOGI(TAG_STATION, "retry to connect to the AP");
+            ESP_LOGI(TAG_STATION, "Retry to connect to the AP");
         } else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
-        ESP_LOGI(TAG_STATION,"connect to the AP fail");
+        ESP_LOGI(TAG_STATION,"Connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG_STATION, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(TAG_STATION, "Got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
@@ -331,22 +326,18 @@ void wifi_init_softap(void)
 }
 
 bool wifi_in_flash(void){
-    ESP_LOGI(TAG, "wifi_in_flash");
-    ESP_LOGD(TAG, "BEBUG 0");
+    ESP_LOGI(TAG_SERVER, "wifi_in_flash");
     if (esp_netif_get_handle_from_ifkey("WIFI_STA_DEF") == NULL) {
         esp_netif_create_default_wifi_sta();
     }
-    ESP_LOGD(TAG, "BEBUG 1");
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_LOGD(TAG, "BEBUG 2");
     wifi_config_t wifi_config;
     esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
-    ESP_LOGD(TAG, "BEBUG 3");
     if(wifi_config.sta.ssid[0] != 0x00){
         sprintf(buffer_info_wifi_post, "%s|%s", wifi_config.sta.ssid, wifi_config.sta.password);
-        ESP_LOGI(TAG, "Have wifi in flash: %s", buffer_info_wifi_post);
+        ESP_LOGI(TAG_SERVER, "Have wifi in flash: %s", buffer_info_wifi_post);
         return true;
     }
     return false;
@@ -355,18 +346,20 @@ bool wifi_in_flash(void){
 
 void app_config() {
     bool state_storage = wifi_in_flash();
-    ESP_LOGI(TAG, "state_storage: %d", state_storage);
+    ESP_LOGI(TAG_SERVER, "state_storage: %d", state_storage);
     s_wifi_event_group = xEventGroupCreate();
     if(!state_storage){
         wifi_scan();
         wifi_init_softap();
         start_webserver();
-        ESP_LOGI(TAG, "start webserver...");
+        ESP_LOGI(TAG_SERVER, "start webserver...");
+        while (buffer_info_wifi_post[0] == '\0') {
+            vTaskDelay(5000 / portTICK_PERIOD_MS);
+            printf("Waiting for wifi info...\n");
+        }
+        // stop_webserver();
+        // ESP_LOGI(TAG_SERVER, "Stop Webserver");
     }
-    else{
-        // ESP_ERROR_CHECK(esp_wifi_start());
-        ESP_LOGI(TAG, "wifi_init_sta...");
-        wifi_init_sta();
-
-    }
+    ESP_LOGI(TAG_SERVER, "wifi_init_sta...");
+    wifi_init_sta();
 }
